@@ -7,9 +7,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, GridSearchCV
 import os
 
-load_dotenv()
 
-os.environ["LOKY_MAX_CPU_COUNT"] = LOKY_MAX_CPU_COUNT
+os.environ["LOKY_MAX_CPU_COUNT"] = "4"
 
 app = Flask(__name__)
 
@@ -99,5 +98,5 @@ def predict():
 
 
 if __name__ == "__main__":
-    port = int(os.getenv(PORT, 5000))  
+    port = int(os.getenv("PORT", 5000))  
     app.run(host="0.0.0.0", port=port)
