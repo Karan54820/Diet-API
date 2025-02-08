@@ -1,25 +1,11 @@
 from flask import Flask, request, jsonify
 import pandas as pd
-import numpy as np
 import pickle
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split, GridSearchCV
 import os
-
 
 os.environ["LOKY_MAX_CPU_COUNT"] = "4"
 
 app = Flask(__name__)
-
-# Load dataset
-file_path = "food_dataset.csv"
-data = pd.read_csv(file_path)
-
-# Feature selection
-start_nutrients_idx = 2
-end_nutrients_idx = 33
-X = data.iloc[:, start_nutrients_idx:end_nutrients_idx + 1]
 
 # Disease mapping
 disease_map = {
@@ -31,33 +17,14 @@ disease_map = {
     'obesity': 'suitable_for_obesity'
 }
 
-# Train and store models
-if not os.path.exists("models"):
-    os.makedirs("models")
+# Load the dataset
+file_path = "food_dataset.csv"
+data = pd.read_csv(file_path)
 
-for disease, target_col in disease_map.items():
-    y = data[target_col]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    
-    knn = KNeighborsClassifier()
-    param_grid = {"n_neighbors": range(1, 50)}
-    grid_search = GridSearchCV(knn, param_grid, cv=5, scoring="accuracy")
-    grid_search.fit(X_train_scaled, y_train)
-
-    best_k = grid_search.best_params_["n_neighbors"]
-    best_knn = KNeighborsClassifier(n_neighbors=best_k)
-    best_knn.fit(X_train_scaled, y_train)
-
-    # Save model & scaler
-    with open(f"models/{disease}_model.pkl", "wb") as f:
-        pickle.dump(best_knn, f)
-
-    with open(f"models/{disease}_scaler.pkl", "wb") as f:
-        pickle.dump(scaler, f)
-
+# Feature selection
+start_nutrients_idx = 2
+end_nutrients_idx = 33
+X = data.iloc[:, start_nutrients_idx:end_nutrients_idx + 1]
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -70,11 +37,17 @@ def predict():
 
     target_col = disease_map[user_disease]
 
-    # Load model & scaler
-    with open(f"models/{user_disease}_model.pkl", "rb") as f:
+    # Load pre-trained model & scaler
+    model_path = f"models/{user_disease}_model.pkl"
+    scaler_path = f"models/{user_disease}_scaler.pkl"
+
+    if not os.path.exists(model_path) or not os.path.exists(scaler_path):
+        return jsonify({"error": "Model or scaler not found"}), 500
+
+    with open(model_path, "rb") as f:
         model = pickle.load(f)
 
-    with open(f"models/{user_disease}_scaler.pkl", "rb") as f:
+    with open(scaler_path, "rb") as f:
         scaler = pickle.load(f)
 
     # Get recommended nutrients
@@ -95,7 +68,6 @@ def predict():
         "recommended_nutrients": recommended_nutrients,
         "top_recipes": top_recipes
     })
-
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))  
